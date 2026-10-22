@@ -1,8 +1,27 @@
 # Deepfake Detection Website
 
+<p align="center">
+  <img src="docs/images/hero-banner.jpg" alt="Deepfake Detection banner" width="900"/>
+</p>
+
 End-to-end deepfake detection web app for **images and videos**. Upload media, run inference through a PyTorch model, and view REAL / FAKE results in a React UI.
 
 Built to run **locally** (no Docker required).
+
+<p align="center">
+  <a href="https://github.com/sarthakpatel2/DeepfakeDetection">
+    <img src="https://img.shields.io/badge/stack-FastAPI%20%7C%20React%20%7C%20PyTorch-0ea5e9" alt="Stack"/>
+  </a>
+  <img src="https://img.shields.io/badge/license-MIT-22c55e" alt="License"/>
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python"/>
+  <img src="https://img.shields.io/badge/node-18%2B-green" alt="Node"/>
+</p>
+
+## Preview
+
+| Upload | Results |
+|:------:|:-------:|
+| <img src="docs/images/upload-preview.jpg" alt="Upload screen preview" width="420"/> | <img src="docs/images/results-preview.jpg" alt="Results screen preview" width="420"/> |
 
 ## Features
 
@@ -91,6 +110,7 @@ DeepfakeDetection/
 │   └── requirements.txt
 ├── frontend/
 │   └── src/                 # React pages & components
+├── docs/images/             # README screenshots & banners
 ├── data/                    # Training data, uploads, model checkpoints
 ├── SETUP_AND_USAGE_GUIDE.md # Detailed setup & training guide
 └── README.md

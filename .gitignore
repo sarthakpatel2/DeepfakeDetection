@@ -72,3 +72,10 @@ Thumbs.db
 *.tiff
 *.gif
 *.ico
+
+# Allow README / docs preview images
+!docs/images/
+!docs/images/**/*.jpg
+!docs/images/**/*.jpeg
+!docs/images/**/*.png
+!docs/images/**/*.webp
