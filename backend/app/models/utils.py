@@ -8,51 +8,46 @@ from ..config import settings, IMAGENET_MEAN, IMAGENET_STD
 
 logger = logging.getLogger(__name__)
 
-# Lazy import for face detection (only load when needed)
-_face_detector = None
+# Single shared MTCNN (paper config)
+_mtcnn = None
 
 
-def normalize_lighting(img_bgr: np.ndarray, clip_limit: float = 2.0, tile_size: int = 8) -> np.ndarray:
+def normalize_lighting(img_bgr: np.ndarray) -> np.ndarray:
 	"""
 	Normalize lighting using CLAHE on luminance to handle dramatic highlights/shadows,
 	indoor lighting, and warm tones. Makes face detection and model input more consistent.
-	
-	Args:
-		img_bgr: BGR image
-		clip_limit: CLAHE contrast limit (higher = more aggressive)
-		tile_size: Grid size for adaptive histogram
 	
 	Returns:
 		BGR image with normalized lighting
 	"""
 	lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
 	L, a, b = cv2.split(lab)
-	clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(tile_size, tile_size))
+	clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 	L_norm = clahe.apply(L)
 	lab_norm = cv2.merge([L_norm, a, b])
 	return cv2.cvtColor(lab_norm, cv2.COLOR_LAB2BGR)
 
 
-def _get_face_detector():
-	"""Lazy load MTCNN face detector to avoid loading on import."""
-	global _face_detector
-	if _face_detector is None:
+def _get_mtcnn(device: torch.device):
+	"""Lazy init MTCNN (must match paper Tools table everywhere)."""
+	global _mtcnn
+	if _mtcnn is None:
 		try:
-			from mtcnn import MTCNN
-			# MTCNN initialization - correct parameter names
-			_face_detector = MTCNN(
+			from facenet_pytorch import MTCNN
+			_mtcnn = MTCNN(
+				image_size=224,
+				margin=int(224 * 0.2),   # padding=0.2 as in paper
 				min_face_size=20,
-				steps_threshold=[0.6, 0.7, 0.7],
-				scale_factor=0.709
+				thresholds=[0.6, 0.7, 0.7],
+				keep_all=False,
+				select_largest=True,
+				device=device,
 			)
-			logger.info("MTCNN face detector initialized")
-		except ImportError:
-			logger.warning("MTCNN not available. Install with: pip install mtcnn")
-			_face_detector = False  # Mark as unavailable
+			logger.info("MTCNN initialized (facenet_pytorch)")
 		except Exception as e:
 			logger.warning(f"Failed to initialize MTCNN: {e}")
-			_face_detector = False  # Mark as unavailable
-	return _face_detector
+			_mtcnn = False  # Mark as unavailable
+	return _mtcnn
 
 
 def load_image_bgr(path: str) -> np.ndarray:
@@ -63,74 +58,51 @@ def load_image_bgr(path: str) -> np.ndarray:
 	return img
 
 
-def detect_faces(img_rgb: np.ndarray, min_face_size: int = 64, confidence: float = 0.9) -> List[dict]:
-	"""
-	Detect faces in an RGB image using MTCNN.
-	
-	Args:
-		img_rgb: RGB image as numpy array (H, W, 3)
-		min_face_size: Minimum face size in pixels
-		confidence: Minimum confidence threshold for face detection
-	
-	Returns:
-		List of detected faces, each containing:
-		- 'box': [x, y, width, height]
-		- 'confidence': detection confidence
-		- 'keypoints': facial landmarks (optional)
-	"""
-	detector = _get_face_detector()
-	if detector is False or detector is None:
-		return []
-	
+def detect_face_box_xyxy(img_rgb: np.ndarray, device: torch.device) -> Optional[np.ndarray]:
+	"""Detect the largest face and return the box [x1, y1, x2, y2]."""
+	mtcnn = _get_mtcnn(device)
+	if mtcnn is False or mtcnn is None:
+		return None
 	try:
-		faces = detector.detect_faces(img_rgb)
-		# Filter by confidence and size
-		filtered_faces = []
-		for face in faces:
-			if face['confidence'] >= confidence:
-				x, y, w, h = face['box']
-				face_size = min(w, h)
-				if face_size >= min_face_size:
-					filtered_faces.append(face)
-		return filtered_faces
+		from PIL import Image
+		img_pil = Image.fromarray(img_rgb)
+		boxes, _ = mtcnn.detect(img_pil)
+		if boxes is None or len(boxes) == 0:
+			return None
+		return boxes[0]
 	except Exception as e:
 		logger.warning(f"Face detection failed: {e}")
-		return []
+		return None
 
 
-def extract_face_region(img_rgb: np.ndarray, face_box: dict, padding: float = 0.2) -> np.ndarray:
+def extract_face_region(img_rgb: np.ndarray, box_xyxy: np.ndarray, padding: float = 0.2) -> np.ndarray:
 	"""
 	Extract and crop face region from image with padding.
 	
 	Args:
 		img_rgb: RGB image as numpy array
-		face_box: Face detection result with 'box' key [x, y, width, height]
+		box_xyxy: Face box [x1, y1, x2, y2]
 		padding: Padding ratio around face (0.2 = 20% padding)
 	
 	Returns:
 		Cropped face region as RGB image
 	"""
-	x, y, w, h = face_box['box']
+	x1, y1, x2, y2 = box_xyxy.astype(float).tolist()
+	x = int(np.floor(x1))
+	y = int(np.floor(y1))
+	w = int(np.floor(x2 - x1))
+	h = int(np.floor(y2 - y1))
 	img_h, img_w = img_rgb.shape[:2]
-	
-	# Calculate padding
-	padding_x = int(w * padding)
-	padding_y = int(h * padding)
-	
-	# Calculate crop coordinates with bounds checking
-	x1 = max(0, x - padding_x)
-	y1 = max(0, y - padding_y)
-	x2 = min(img_w, x + w + padding_x)
-	y2 = min(img_h, y + h + padding_y)
-	
-	# Extract face region
-	face_crop = img_rgb[y1:y2, x1:x2]
-	return face_crop
+	padding_x = int(np.floor(w * padding))
+	padding_y = int(np.floor(h * padding))
+	xx1 = max(0, x - padding_x)
+	yy1 = max(0, y - padding_y)
+	xx2 = min(img_w, x + w + padding_x)
+	yy2 = min(img_h, y + h + padding_y)
+	return img_rgb[yy1:yy2, xx1:xx2]
 
 
-def detect_and_extract_largest_face(img_rgb: np.ndarray, min_face_size: int = 64, 
-								   confidence: float = 0.85, padding: float = 0.2,
-								   retry_lower_confidence: bool = True) -> Optional[np.ndarray]:
+def detect_and_extract_largest_face(img_rgb: np.ndarray, device: torch.device, padding: float = 0.2) -> Optional[np.ndarray]:
 	"""
 	Detect faces and extract the largest face region. Retries with lower confidence
 	if no face found (helps with dramatic lighting, indoor, warm tones).
@@ -145,31 +117,19 @@ def detect_and_extract_largest_face(img_rgb: np.ndarray, min_face_size: int = 64
 	Returns:
 		Cropped face region as RGB image, or None if no face detected
 	"""
-	confidences = [confidence]
-	if retry_lower_confidence and confidence > 0.6:
-		if confidence > 0.75:
-			confidences.append(0.75)
-		if confidence > 0.6:
-			confidences.append(0.6)
-	
-	for conf in confidences:
-		faces = detect_faces(img_rgb, min_face_size, conf)
-		if faces:
-			# Select largest face (by area)
-			largest_face = max(faces, key=lambda f: f['box'][2] * f['box'][3])
-			face_crop = extract_face_region(img_rgb, largest_face, padding)
-			if conf < confidence:
-				logger.debug(f"Face detected with fallback confidence {conf}")
-			return face_crop
-	
-	return None
+	box = detect_face_box_xyxy(img_rgb, device=device)
+	if box is None:
+		return None
+	return extract_face_region(img_rgb, box, padding)
 
 
 def preprocess_image_for_model(img_bgr: np.ndarray, size: Tuple[int, int] | None = None,
-							   use_face_detection: bool = True, min_face_size: int = 64,
-							   face_confidence: float = 0.85, face_padding: float = 0.2,
+							   use_face_detection: bool = True,
+							   face_padding: float = 0.2,
 							   use_lighting_normalization: bool = True,
-							   use_imagenet_normalization: bool = True) -> torch.Tensor:
+							   use_imagenet_normalization: bool = True,
+							   inference_fallback_center_crop: bool = False,
+							   device: torch.device | None = None) -> torch.Tensor:
 	"""
 	Preprocess image for model input (ResNet expects 224x224, ImageNet-normalized).
 	
@@ -189,6 +149,7 @@ def preprocess_image_for_model(img_bgr: np.ndarray, size: Tuple[int, int] | None
 	if size is None:
 		s = settings.MODEL_INPUT_SIZE
 		size = (s, s)
+	device = device or (torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"))
 	# Lighting normalization first - helps face detection in dramatic/indoor/warm lighting
 	if use_lighting_normalization:
 		img_bgr = normalize_lighting(img_bgr)
@@ -198,16 +159,21 @@ def preprocess_image_for_model(img_bgr: np.ndarray, size: Tuple[int, int] | None
 	
 	# Face detection and extraction
 	if use_face_detection:
-		face_crop = detect_and_extract_largest_face(
-			img_rgb, 
-			min_face_size=min_face_size,
-			confidence=face_confidence,
-			padding=face_padding
-		)
+		face_crop = detect_and_extract_largest_face(img_rgb, device=device, padding=face_padding)
 		if face_crop is not None:
 			img_rgb = face_crop
 			logger.debug("Face detected and extracted")
 		else:
+			if inference_fallback_center_crop:
+				from PIL import Image
+				import torchvision.transforms as T
+				fallback = T.Compose([
+					T.Resize(256),
+					T.CenterCrop(224),
+					T.ToTensor(),
+					T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+				])
+				return fallback(Image.fromarray(img_rgb))
 			logger.warning("No face detected, using full image")
 	
 	# Resize to target size

@@ -11,6 +11,12 @@ build/
 env/
 venv/
 ENV/
+.venv/
+.venv_*/
+backend/.venv/
+backend/.venv_*/
+backend/.venv_api/
+backend/.venv_run/
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/

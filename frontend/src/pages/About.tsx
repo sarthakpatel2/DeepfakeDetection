@@ -32,14 +32,14 @@ export default function About() {
 						},
 
 						{
-							name: "Madhav (GROUP LEAD)",
+							name: "Madhav",
 							role: "Backend & Model Integration",
-							desc: "Coordinated the team, integrated the PyTorch model with FastAPI, and designed the end‑to‑end inference pipeline from upload to prediction.",
+							desc: "Integrated the PyTorch model with FastAPI, and designed the end‑to‑end inference pipeline from upload to prediction.",
 						},
 
 						{
 							name: "Pragati",
-							role: "Frontend & UX",
+							role: "Research & Coordination",
 							desc: "Designed the user interface, created the landing, About, and results pages, and focused on making the detector easy and pleasant to use.",
 						},
 
@@ -51,14 +51,14 @@ export default function About() {
 						},
 
 						{
-							name: "Sarthak",
+							name: "Sarthak (GROUP LEAD)",
 							role: "Architecture & Coordination",
-							desc: "Helped define the system architecture, documented design choices, and ensured the backend, database, and worker processes work together smoothly.",
+							desc: "Coordinated the team, helped define the system architecture, documented design choices, and ensured the backend, database, and worker processes work together smoothly.",
 						},
 
 						{
 							name: "Shivendra",
-							role: "Research & Experiments",
+							role: "Frontend & Ux",
 							desc: "Explored deepfake datasets and prior research, tuned model parameters, and evaluated detector performance with different settings.",
 						},
 						

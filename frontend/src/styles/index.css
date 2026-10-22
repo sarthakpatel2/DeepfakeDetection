@@ -8,6 +8,16 @@ body {
 	font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+::selection {
+	background: rgba(56, 189, 248, 0.25);
+}
+
+/* Nicer default focus for keyboard navigation */
+:focus-visible {
+	outline: 2px solid rgba(56, 189, 248, 0.9);
+	outline-offset: 2px;
+}
+
 /* Gradient shell for the main app container */
 .app-shell {
 	@apply min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-50;
@@ -23,11 +33,11 @@ body {
 }
 
 .app-nav-link {
-	@apply text-slate-300 hover:text-sky-300 transition-colors;
+	@apply rounded-lg px-3 py-2 text-slate-300 hover:text-sky-300 hover:bg-slate-900/40 transition-colors;
 }
 
 .app-nav-link-active {
-	@apply text-sky-300 font-semibold;
+	@apply text-sky-300 font-semibold bg-slate-900/60 border border-slate-800;
 }
 
 /* Card styles with subtle glow */

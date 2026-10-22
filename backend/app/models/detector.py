@@ -73,14 +73,28 @@ def load_detector(device: torch.device | None = None, checkpoint_path: str = "./
 		try:
 			state = torch.load(ckpt_path, map_location=device)
 			# Handle both raw state_dict and wrapped format
-			state_dict = state.get("state_dict", state) if isinstance(state, dict) else state
-			model.load_state_dict(state_dict, strict=False)
+			if isinstance(state, dict) and "model_state_dict" in state:
+				state_dict = state["model_state_dict"]
+				model.tau_low = float(state.get("tau_low", settings.UNCERTAIN_LOW))
+				model.tau_high = float(state.get("tau_high", settings.UNCERTAIN_HIGH))
+			else:
+				state_dict = state.get("state_dict", state) if isinstance(state, dict) else state
+				model.tau_low = float(settings.UNCERTAIN_LOW)
+				model.tau_high = float(settings.UNCERTAIN_HIGH)
+			# If this is our packaged checkpoint, load strictly to avoid silent partial loads.
+			# (No architecture change; this only ensures weights really match the model.)
+			strict = bool(isinstance(state, dict) and "model_state_dict" in state)
+			model.load_state_dict(state_dict, strict=strict)
 			print(f"Loaded model weights from {ckpt_path}")
 		except Exception as e:
 			print(f"Warning: Could not load checkpoint {ckpt_path}: {e}")
 			print("Using pretrained ResNet + random classifier head (retrain recommended)")
+			model.tau_low = float(settings.UNCERTAIN_LOW)
+			model.tau_high = float(settings.UNCERTAIN_HIGH)
 	else:
 		print(f"No checkpoint at {ckpt_path}, using pretrained ResNet (retrain recommended)")
+		model.tau_low = float(settings.UNCERTAIN_LOW)
+		model.tau_high = float(settings.UNCERTAIN_HIGH)
 
 	model.eval()
 	return model

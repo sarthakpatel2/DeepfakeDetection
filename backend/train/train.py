@@ -7,6 +7,7 @@ import signal
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import numpy as np
 
 # Add backend root to path so we can import app modules when run as a script
 backend_dir = str(Path(__file__).resolve().parent.parent)
@@ -27,14 +28,20 @@ def _eval_accuracy(model, loader, device):
 	"""Compute accuracy on a dataset. Model returns logits."""
 	model.eval()
 	correct, total = 0, 0
+	tau_low = float(getattr(model, "tau_low", settings.UNCERTAIN_LOW))
+	tau_high = float(getattr(model, "tau_high", settings.UNCERTAIN_HIGH))
 	with torch.no_grad():
 		for x, y in loader:
 			x, y = x.to(device), y.to(device)
 			logits = model(x)
-			prob = torch.sigmoid(logits)
-			pred = (prob >= 0.5).float()
-			correct += (pred == y).sum().item()
-			total += y.numel()
+			prob = torch.sigmoid(logits).detach().cpu().numpy().reshape(-1)
+			yt = y.detach().cpu().numpy().reshape(-1).astype(int)
+			preds = np.where(prob < tau_low, 0, np.where(prob > tau_high, 1, -1))
+			mask = preds != -1
+			if mask.sum() == 0:
+				continue
+			correct += int(np.sum(preds[mask] == yt[mask]))
+			total += int(mask.sum())
 	model.train()
 	return correct / total if total else 0.0
 

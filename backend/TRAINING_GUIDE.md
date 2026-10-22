@@ -75,7 +75,7 @@ train(
     fake_dir="./data/train/fake",
     epochs=10,              # Number of training epochs
     lr=1e-3,                # Learning rate
-    batch_size=16,          # Batch size (adjust based on GPU memory)
+    batch_size=16,          # Batch size 
     save_path="./data/detector.pt"  # Where to save the model
 )
 ```

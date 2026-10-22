@@ -58,9 +58,3 @@ app.include_router(jobs_router)
 
 
 
-
-
-
-
-
-

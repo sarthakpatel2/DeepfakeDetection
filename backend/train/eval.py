@@ -3,6 +3,7 @@ import sys
 import os
 import torch
 from torch.utils.data import DataLoader
+import numpy as np
 
 # Add backend root to path so we can import app modules when run as a script
 backend_dir = str(Path(__file__).resolve().parent.parent)
@@ -22,7 +23,10 @@ def evaluate(real_dir: str, fake_dir: str, batch_size: int = 16, ckpt_path: str 
 	model = ResNetDeepfakeDetector(pretrained=True).to(device)
 	if Path(ckpt_path).exists():
 		state = torch.load(ckpt_path, map_location=device)
-		model.load_state_dict(state, strict=False)
+		if isinstance(state, dict) and "model_state_dict" in state:
+			model.load_state_dict(state["model_state_dict"], strict=False)
+		else:
+			model.load_state_dict(state, strict=False)
 	model.eval()
 	loader: DataLoader = make_loader(
 		real_dir,
@@ -38,15 +42,21 @@ def evaluate(real_dir: str, fake_dir: str, batch_size: int = 16, ckpt_path: str 
 	)
 	correct = 0
 	total = 0
+	tau_low = float(getattr(model, "tau_low", settings.UNCERTAIN_LOW))
+	tau_high = float(getattr(model, "tau_high", settings.UNCERTAIN_HIGH))
 	with torch.no_grad():
 		for x, y in loader:
 			x = x.to(device)
 			y = y.to(device)
 			logits = model(x)
-			prob = torch.sigmoid(logits)
-			pred = (prob >= 0.5).float()
-			correct += (pred == y).sum().item()
-			total += y.numel()
+			prob = torch.sigmoid(logits).detach().cpu().numpy().reshape(-1)
+			yt = y.detach().cpu().numpy().reshape(-1).astype(int)
+			preds = np.where(prob < tau_low, 0, np.where(prob > tau_high, 1, -1))
+			mask = preds != -1
+			if mask.sum() == 0:
+				continue
+			correct += int(np.sum(preds[mask] == yt[mask]))
+			total += int(mask.sum())
 	acc = correct / total if total else 0.0
 	print(f"Accuracy: {acc:.4f}")
 	return acc

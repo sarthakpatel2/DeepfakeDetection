@@ -34,18 +34,16 @@ def main():
     tensor = preprocess_image_for_model(
         img,
         use_face_detection=use_face_detection,
-        min_face_size=settings.MIN_FACE_SIZE,
-        face_confidence=settings.FACE_DETECTION_CONFIDENCE,
-        face_padding=settings.FACE_PADDING,
-        use_lighting_normalization=settings.USE_LIGHTING_NORMALIZATION
+        face_padding=0.2,
+        use_lighting_normalization=True,
+        inference_fallback_center_crop=True,
+        device=device,
     )
     tensor = tensor.to(device)
 
-    score, label = predict_image(
-        model, tensor,
-        uncertain_low=settings.UNCERTAIN_LOW,
-        uncertain_high=settings.UNCERTAIN_HIGH
-    )
+    tau_low = float(getattr(model, "tau_low", settings.UNCERTAIN_LOW))
+    tau_high = float(getattr(model, "tau_high", settings.UNCERTAIN_HIGH))
+    score, label = predict_image(model, tensor, uncertain_low=tau_low, uncertain_high=tau_high)
     print(f"Image: {image_path}")
     print(f"Face detection: {'Enabled' if use_face_detection else 'Disabled'}")
     print(f"Score: {score:.4f}")
