@@ -1,75 +1,135 @@
-Deepfake Detection Website (Images & Videos)
-===========================================
+# Deepfake Detection Website
 
-End-to-end scaffold for a GAN-based deepfake detection website that supports images and videos, designed to run locally without Docker. Includes a FastAPI backend with Celery background workers, MongoDB (Motor) persistence, PyTorch model scaffold, and a React + Tailwind frontend.
+End-to-end deepfake detection web app for **images and videos**. Upload media, run inference through a PyTorch model, and view REAL / FAKE results in a React UI.
 
-Stack
------
-- Backend/ML: Python 3.10+, FastAPI, PyTorch, MongoDB (Motor)
-- Background Tasks: FastAPI BackgroundTasks (default, no Redis needed) or Celery + Redis (optional)
-- Frontend: React (Vite) + TypeScript + Tailwind CSS
-- Database: MongoDB (local)
-- Testing: pytest (backend), vitest + @testing-library/react (frontend)
-- Environment: venv + requirements.txt
+Built to run **locally** (no Docker required).
 
-Getting Started (Local, no Docker)
-----------------------------------
-1) Prerequisites
-- Python 3.10+
-- Node.js 18+
-- MongoDB running locally (default: mongodb://localhost:27017)
-- Redis (optional): Only needed if using Celery workers. See `backend/REDIS_ALTERNATIVES.md` for details.
+## Features
 
-2) Environment
-- Copy `.env.example` to `.env` and adjust values as needed.
+- Image and video upload with job tracking
+- FastAPI backend with background processing for videos
+- PyTorch CNN detector scaffold (trainable)
+- MongoDB persistence for jobs and results
+- React + TypeScript + Tailwind frontend
+- Landing, upload, results, and about pages
 
-3) Backend
-- Create venv and install:
-  - `cd backend`
-  - `python -m venv .venv`
-  - Windows PowerShell: `.\.venv\Scripts\Activate.ps1`
-  - `pip install -r requirements.txt`
-- Run API (no Redis needed by default): 
-  - `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
-- Optional: Start Celery worker (only if using Redis):
-  - `celery -A app.workers.tasks.celery_app worker --loglevel=INFO`
-  
-  **Note:** By default, the app uses FastAPI BackgroundTasks which doesn't require Redis or a separate worker process. See `backend/REDIS_ALTERNATIVES.md` for more options.
+## Tech Stack
 
-4) Frontend
-- `cd frontend`
-- `npm install`
-- `npm run dev` (default on http://localhost:5173)
+| Layer | Tech |
+|-------|------|
+| Backend / ML | Python 3.10+, FastAPI, PyTorch, OpenCV |
+| Database | MongoDB (Motor) |
+| Background jobs | FastAPI `BackgroundTasks` (default) · Celery + Redis (optional) |
+| Frontend | React (Vite), TypeScript, Tailwind CSS |
+| Testing | pytest · Vitest |
 
-5) Directory Layout
-- See the tree in your request; files have been created to match it.
+## Prerequisites
 
-Key Endpoints
--------------
-- POST `/upload` (multipart/form-data): Upload image/video. Returns `{ job_id }`, queues background job if video.
-- GET `/jobs/{id}`: Returns job metadata and status.
-- GET `/results/{id}`: Returns aggregated inference results for a job.
-- POST `/inference/predict` (image only): Synchronous image prediction.
+- Python **3.10+**
+- Node.js **18+**
+- MongoDB running locally (`mongodb://localhost:27017`)
+- Redis *(optional — only if using Celery)*
 
-Notes
------
-- The GAN/CNN model is a simple scaffold. Replace with your real model later.
-- **Training**: See `backend/TRAINING_GUIDE.md` for detailed training instructions
-- **Data Storage**: See `DATA_STORAGE_GUIDE.md` for where to save training data, models, and runtime files
-- Local file storage (default locations):
-  - Training data: `data/train/real/` and `data/train/fake/`
-  - Model checkpoint: `data/detector.pt` (created after training)
-  - Uploads: `data/uploads` (automatic)
-  - Frames: `data/frames/{job_id}` (automatic)
-  - Results: `data/results` (automatic)
+## Quick Start
 
-Security and Privacy
---------------------
-- See `PRIVACY.md` and `DISCLAIMER.md`. Do not upload sensitive data to demo setups.
+### 1. Clone the repo
 
-License
--------
-- MIT — see `LICENSE`.
+```bash
+git clone https://github.com/sarthakpatel2/DeepfakeDetection.git
+cd DeepfakeDetection
+```
 
+### 2. Backend
 
+```bash
+cd backend
+python -m venv .venv
 
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+
+# macOS / Linux
+# source .venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+API: **http://127.0.0.1:8000** (health check returns `{"status":"ok"}`)
+
+### 3. Frontend
+
+Open a second terminal:
+
+```bash
+cd frontend
+npm install
+npx vite --host 127.0.0.1 --port 5173
+```
+
+App: **http://127.0.0.1:5173**
+
+> Tip: keep MongoDB running before starting the backend.
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/upload` | Upload image/video → returns `{ job_id }` |
+| `GET` | `/jobs/{id}` | Job status and metadata |
+| `GET` | `/results/{id}` | Aggregated inference results |
+| `POST` | `/inference/predict` | Synchronous image prediction |
+
+## Project Structure
+
+```text
+DeepfakeDetection/
+├── backend/
+│   ├── app/                 # FastAPI app, APIs, inference, models
+│   ├── train/               # Training & evaluation scripts
+│   ├── scripts/             # Utility / diagnostic scripts
+│   └── requirements.txt
+├── frontend/
+│   └── src/                 # React pages & components
+├── data/                    # Training data, uploads, model checkpoints
+├── SETUP_AND_USAGE_GUIDE.md # Detailed setup & training guide
+└── README.md
+```
+
+## Training the Model
+
+The detector is a scaffold CNN — train it before expecting strong accuracy.
+
+```bash
+cd backend
+python train/quick_start.py   # creates data/train/real and data/train/fake
+# add images to those folders, then:
+python train/train.py
+python train/eval.py
+```
+
+Default checkpoint path: `data/detector.pt`
+
+See `backend/TRAINING_GUIDE.md` and `SETUP_AND_USAGE_GUIDE.md` for full details.
+
+## Team
+
+| Member | Role |
+|--------|------|
+| **Sarthak (Group Lead)** | Architecture & Coordination |
+| Aman | API & Infrastructure |
+| Madhav | Backend & Model Integration |
+| Pragati | Research & Coordination |
+| Racheet | Backend & Model Integration |
+| Shivendra | Frontend & UX |
+
+## Notes
+
+- This project is intended for **education / demo** use.
+- Model quality depends heavily on training data size and quality.
+- Do not upload sensitive personal media to demo setups.
+- See `PRIVACY.md` and `DISCLAIMER.md`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
